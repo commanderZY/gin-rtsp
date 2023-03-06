@@ -2,29 +2,146 @@
 <html>
 <head>
 	<title>JSMpeg Stream Client</title>
-	<style type="text/css">
-		html, body {
-			text-align: center;
-		}
-	</style>
-
+	<link href="subpage.css?v=20220803" type="text/css" rel="stylesheet">
 </head>
 <body>
-	<canvas id="video-canvas"></canvas>
-
-	<canvas id="video-canvas1"></canvas>
+	<div style="background-color: #1a1a1a;">
+		<div class="canvas-div">
+			<canvas id="video-canvas1" style="display:block; margin: 0 auto;width: 1280px;height: 720px"></canvas>
+		</div>
+	</div>
+<!--	<div id="control" class="nav2" style="display:none;">-->
+	<div id="control" class="nav2">
+		<div>
+			<ul class="ul_play">
+				<li class="ul_play_li">
+					<span id="switch" class="ul_play_span">暂停</span>
+				</li>
+				<li  class="ul_play_li">
+					<span id="streamType" class="ul_play_span">切换子流</span>
+				</li>
+				<li  class="ul_play_li" id="full">
+					<div>
+						<span id="full_1" class="ul_play_span">全屏切换</span>
+						<span id="full_esc" class="ul_play_span_esc">按ESC可退出全屏</span>
+					</div>
+				</li>
+				<li  class="ul_play_li_right">
+					<span id="audio" class="ul_play_span" >关闭声音</span>
+				</li>
+			</ul>
+		</div>
+	</div>
 
 	<script type="text/javascript" src="jsmpeg.min.js"></script>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 	<script type="text/javascript">
-		var canvas = document.getElementById('video-canvas');
-		var url = 'ws://192.168.3.19:4000/stream/live/5b96bff4-bdb2-3edb-9d6e-f96eda03da56';
-		var player = new JSMpeg.Player(url, {canvas: canvas});
+		var request = new XMLHttpRequest();
+		var url = "http://127.0.0.1:3000/stream/play"; //接口url
+		request.open("POST", url, true);
+		request.setRequestHeader("Content-type", "application/json");
+		request.send('{"url": "rtsp://192.168.31.204/main_stream"}'); //传入的数据，不同摄像头修改这里的rtsp地址即可
+		request.onreadystatechange = function(){
+			//若响应完成且请求成功
+			if(request.readyState === 4 && request.status === 200){
+				//do something, e.g. request.responseText
+				console.log("response:"+request.responseText)
+				const resObj = JSON.parse(request.responseText);
+				if (resObj['data']) {
+					if (resObj['data']['path']) {
+						console.log("ws path:"+resObj['data']['path'])
 
+						var canvas1 = document.getElementById('video-canvas1');
+						// var url = 'ws://127.0.0.1:3000/stream/live/test';
+						var wsUrl = 'ws://127.0.0.1:3000'+resObj['data']['path']
+                        console.log("ws url:"+wsUrl)
+						alert("由于Google协议要求，点击页面后播放")
+						document.addEventListener('click', () => {
+							var player = new JSMpeg.Player(wsUrl, {canvas: canvas1
+								// 要在用户点击过页面后，才可以播放声音
+								// audio: false,
+							})
+						}, { once: true })
+					}
+				}
+			}
+		}
 
-		var canvas1 = document.getElementById('video-canvas1');
-		var url1 = 'ws://127.0.0.1:3000/stream/live/5b96bff4-bdb2-3edb-9d6e-f96eda03da56';
-		var player1 = new JSMpeg.Player(url1, {canvas: canvas1});
+		function sleep (time) {
+			return new Promise((resolve) => setTimeout(resolve, time));
+		}
 
+		function streamChange()
+		{
+			//console.log("change stream");
+			player.destroy()
+			if(streamType === '0' || streamType === '')
+			{
+				streamType = '1'
+			}else{
+				streamType = '0'
+			}
+			// 用法
+			(async function() {
+				console.log('Do some thing, ' + new Date());
+				//等待一点时间，让服务端准备好流再播放，避免出现花屏等问题
+				await sleep(2000);
+				play()
+				console.log('Do other things, ' + new Date());
+			})();
+		}
+
+		function switchChange()
+		{
+			if(isPlaying == 0)
+			{
+				player.play();
+				$("#switch").text("暂停");
+				isPlaying = 1;
+			}else //to  stop
+			{
+				player.pause();
+				$("#switch").text("播放");
+				isPlaying = 0;
+			}
+		}
+
+		function fullChange()
+		{
+			document.getElementById("video-canvas1").requestFullscreen();
+		}
+
+		function audioChange()
+		{
+			console.log("current volume："+player.getVolume())
+			if (player.getVolume() > 0) {
+				$("#audio").text("打开声音");
+				player.setVolume(0)
+			} else {
+				$("#audio").text("关闭声音");
+				player.setVolume(1)
+			}
+			console.log("current volume："+player.getVolume())
+		}
+
+		$(document).ready(function(){
+			play();
+			$('#streamType').click(function() {
+				streamChange();
+			});
+
+			$('#switch').click(function() {
+				switchChange();
+			});
+
+			$('#full').click(function() {
+				fullChange();
+			});
+
+			$('#audio').click(function() {
+				audioChange();
+			});
+		});
 	</script>
 </body>
 </html>
