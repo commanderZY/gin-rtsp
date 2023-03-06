@@ -1,7 +1,7 @@
 package service
 
 import (
-	"cm-push-flow-web/util"
+	"gin-rtsp/util"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
