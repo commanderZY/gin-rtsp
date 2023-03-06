@@ -1,7 +1,7 @@
 package service
 
 import (
-	"ginrtsp/util"
+	"cm-push-flow-web/util"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -94,6 +94,7 @@ func (manager *clientManager) Start() {
 
 					if len(manager.clientGroup[client.Group]) == 0 {
 						util.Log().Info("Clear no client group %s", client.Group)
+						closeRTSPPlayCh = client.Group
 						delete(manager.clientGroup, client.Group)
 					}
 				}
