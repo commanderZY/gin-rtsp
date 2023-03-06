@@ -23,6 +23,8 @@ type RTSPTransSrv struct {
 // processMap FFMPEG 进程刷新通道，未在指定时间刷新的流将会被关闭
 var processMap sync.Map
 
+var closeRTSPPlayCh string
+
 // Service RTSP 转换服务
 func (service *RTSPTransSrv) Service() *serializer.Response {
 	simpleString := strings.Replace(service.URL, "//", "/", 1)
@@ -66,13 +68,19 @@ func keepFFMPEG(cmd *exec.Cmd, stdin io.WriteCloser, ch *chan struct{}, playCh s
 		case <-*ch:
 			util.Log().Info("Reflush channel %s", playCh)
 
-		case <-time.After(60 * time.Second):
-			_, _ = stdin.Write([]byte("q"))
-			err := cmd.Wait()
-			if err != nil {
-				util.Log().Error("Run ffmpeg err %v", err.Error())
+		case <-time.After(1 * time.Second):
+			util.Log().Debug("closeRTSPPlayCh %v", closeRTSPPlayCh)
+			if closeRTSPPlayCh == playCh && closeRTSPPlayCh != "" {
+				closeRTSPPlayCh = ""
+				_, _ = stdin.Write([]byte ( "q" ))
+				err := cmd.Wait()
+				if err != nil {
+					util.Log().Error("Run ffmpeg err %v", err.Error())
+				} else {
+					util.Log().Debug("Stop this rtsp")
+				}
+				return
 			}
-			return
 		}
 	}
 }
@@ -81,25 +89,56 @@ func runFFMPEG(rtsp string, playCh string) (*exec.Cmd, io.WriteCloser, error) {
 	params := []string{
 		"-rtsp_transport",
 		"tcp",
-		"-re",
+		//"-re",
+		"-timeout",
+		"5000000",
 		"-i",
 		rtsp,
 		"-q",
-		"5",
+		"0",
 		"-f",
 		"mpegts",
 		"-fflags",
 		"nobuffer",
-		"-c:v",
+		"-codec:v",
 		"mpeg1video",
-		"-an",
-		"-s",
-		"960x540",
+		//"-s", "960x540", "-b:v", "1500k", "-r", "30", "-bf", "0",
+		"-codec:a",
+		"mp2",
+		"-ar", "44100", "-ac", "1", "-b:a", "128k",
+		"-muxdelay", "0.001",
 		fmt.Sprintf("http://127.0.0.1:3000/stream/upload/%s", playCh),
 	}
+	if strings.Contains(rtsp, "main_stream") {
+		params = []string{
+			"-rtsp_transport",
+			"tcp",
+			//"-re",
+			"-timeout",
+			"5000000",
+			"-i",
+			rtsp,
+			"-q",
+			"0",
+			"-f",
+			"mpegts",
+			"-fflags",
+			"nobuffer",
+			"-codec:v",
+			"mpeg1video",
+			"-s", "960x540", "-b:v", "1000k", "-r", "20", "-bf", "0",
+			//"-b:v", "1000k", "-r", "20", "-bf", "0",
+			"-codec:a",
+			"mp2",
+			"-ar", "44100", "-ac", "1", "-b:a", "128k",
+			"-muxdelay", "0.001",
+			fmt.Sprintf("http://127.0.0.1:3000/stream/upload/%s", playCh),
+			//"out.ts",
+		}
+	}
 
-	util.Log().Debug("FFmpeg cmd: ffmpeg %v", strings.Join(params, " "))
-	cmd := exec.Command("ffmpeg", params...)
+	util.Log().Debug("FFmpeg cmd: ./ffmpeg %v", strings.Join(params, " "))
+	cmd := exec.Command("./ffmpeg", params...)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	stdin, err := cmd.StdinPipe()
